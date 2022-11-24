@@ -168,6 +168,15 @@ contract Ballot {
         proposals[proposal].voteCount += sender.weight;
     }
 
+    // display all proposals from proposals array
+    function getAllProposals() external view returns(Proposal[] memory) {
+        Proposal[] memory items = new Proposal[](proposals.length);
+        for(uint i = 0; i < proposals.length; i++) {
+            items[i] = proposals[i];
+        }
+        return items;
+    }
+
     /// @dev Computes the winning proposal index taking all
     /// previous votes into account.
     function winningProposalIndex() private view
