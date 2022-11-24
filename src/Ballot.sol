@@ -45,7 +45,7 @@ contract Ballot {
     Proposal[] public proposals;
 
     // Create a new ballot to choose one of `proposalNames`.
-    constructor(string memory _question, uint256 _durationMinutes) {
+    constructor(string memory _question, uint256 _durationMinutes) payable {
         chairperson = msg.sender;
         voters[chairperson].weight = 1;
         durationMinutes = _durationMinutes;
