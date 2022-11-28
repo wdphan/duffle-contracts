@@ -40,7 +40,7 @@ contract Ballot {
     // This declares a state variable that
     // stores a `Voter` struct for each possible address.
     mapping(address => Voter) public voters;
-
+    
     // A dynamically-sized array of `Proposal` structs.
     Proposal[] public proposals;
 
@@ -54,6 +54,7 @@ contract Ballot {
         pollEnd = block.timestamp + (durationMinutes * 1 minutes);
     }
 
+    // SAMPLE TITLES:
     // console.log(Web3.utils.asciiToHex("foo")); = 0x666f6f
     // console.log(Web3.utils.asciiToHex("bar")); = 0x626172
     // ["0x666f6f0000000000000000000000000000000000000000000000000000000000", 
@@ -63,6 +64,10 @@ contract Ballot {
      receive() external payable {
         emit Received(msg.sender, msg.value);
     }
+
+    ////////////////
+    /// CHAIRMAN ///
+    ////////////////
 
     // create proposals for the current question with title, descriptio
     // starts with 0 votes
@@ -107,6 +112,10 @@ contract Ballot {
         require(voters[voter].weight == 0);
         voters[voter].weight = 1;
     }
+
+    //////////////
+    /// VOTERS ///
+    //////////////
 
     /// Delegate your vote to the voter `to`.
     function delegateVote(address to) external {
@@ -168,22 +177,20 @@ contract Ballot {
         proposals[proposal].voteCount += sender.weight;
     }
 
-    // display all proposals from proposals array
-    function getAllProposals() external view returns(Proposal[] memory) {
-        Proposal[] memory items = new Proposal[](proposals.length);
-        for(uint i = 0; i < proposals.length; i++) {
-            items[i] = proposals[i];
-        }
-        return items;
-    }
+    /////////////////////////////
+    /// WINNING PROPOSAL INFO ///
+    /////////////////////////////
 
-    /// @dev Computes the winning proposal index taking all
+     /// @dev Computes the winning proposal index taking all
     /// previous votes into account.
     function winningProposalIndex() private view
             returns (uint winningProposal_)
     {
         uint winningVoteCount = 0;
         for (uint p = 0; p < proposals.length; p++) {
+            // if total votes are greater than 0, then
+            // set the total vote count of the proposal with most votes
+            // to winner
             if (proposals[p].voteCount > winningVoteCount) {
                 winningVoteCount = proposals[p].voteCount;
                 winningProposal_ = p;
@@ -194,10 +201,25 @@ contract Ballot {
     // Calls winningProposalIndex() function to get the index
     // of the winner contained in the proposals array and then
     // returns the title of the winning proposal
-    function winningProposal() external view
-            returns (bytes32 winnerName_)
+    function winningProposalTitle() external view
+            returns (bytes32 winningProposal_)
     {
-        winnerName_ = proposals[winningProposalIndex()].title;
+        // grabs index and logs title of winning proposal
+        winningProposal_ = proposals[winningProposalIndex()].title;
+    }
+
+    function winningProposalDescription() external view
+            returns (string memory winningProposal_)
+    {
+        // grabs index and logs description of winning proposal
+        winningProposal_ = proposals[winningProposalIndex()].description;
+    }
+
+    function winningProposalVoteCount() external view
+            returns (uint winningProposal_)
+    {
+        // grabs index and logs title of winning proposal
+        winningProposal_ = proposals[winningProposalIndex()].voteCount;
     }
 
 
@@ -218,7 +240,6 @@ contract Ballot {
         for(uint i=0; i < proposals.length; i++) {
            emit PollResult(proposals[winningProposalIndex()].creator, proposals[winningProposalIndex()].title, proposals[winningProposalIndex()].description, proposals[winningProposalIndex()].voteCount);
         }
-
         address creator = proposals[winningProposalIndex()].creator;
 
         payable(creator).transfer(contractBalance);
@@ -226,4 +247,12 @@ contract Ballot {
         emit PaidWinningProposalCreator(creator, contractBalance);
     }
 
+    // display all proposals from proposals array
+    function getAllProposals() external view returns(Proposal[] memory) {
+        Proposal[] memory items = new Proposal[](proposals.length);
+        for(uint i = 0; i < proposals.length; i++) {
+            items[i] = proposals[i];
+        }
+        return items;
+    }
 }
