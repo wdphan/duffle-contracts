@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.7.0 <0.9.0;
 /// @title Voting with delegation.
+import "./Split.sol";
 contract Ballot {
     // This declares a new complex type which will
     // be used for variables later.
@@ -35,14 +36,19 @@ contract Ballot {
 
     event Received(address, uint);
     event PollResult(address creator, bytes32 title, string description, uint voteCount);
-    event PaidWinningProposalCreator(address creator, uint amountPaid);
+    event PaidWinningProposalCreator(address creator, uint amountPaidOut);
+    event PaidVoters(address chairperson, address payable [] voters, uint amountPaidOut);
+    event PaidProposalCreators(address chairperson, uint amountPaidOut);
 
     // This declares a state variable that
     // stores a `Voter` struct for each possible address.
     mapping(address => Voter) public voters;
     
     // A dynamically-sized array of `Proposal` structs.
-    Proposal[] public proposals;
+    Proposal [] public proposals;
+    address payable[] public allVoters;
+
+    
 
     // Create a new ballot to choose one of `proposalNames`.
     constructor(string memory _question, uint256 _durationMinutes) payable {
@@ -177,6 +183,15 @@ contract Ballot {
         proposals[proposal].voteCount += sender.weight;
     }
 
+     // display all proposals from proposals array
+    function getAllProposals() external view returns(Proposal[] memory) {
+        Proposal[] memory items = new Proposal[](proposals.length);
+        for(uint i = 0; i < proposals.length; i++) {
+            items[i] = proposals[i];
+        }
+        return items;
+    }
+
     /////////////////////////////
     /// WINNING PROPOSAL INFO ///
     /////////////////////////////
@@ -196,6 +211,14 @@ contract Ballot {
                 winningProposal_ = p;
             }
         }
+    }
+
+    // provides the creator address of the winning proposal
+    function winningProposalAddress() external view
+            returns (address winningProposal_)
+    {
+        // grabs index and logs title of winning proposal
+        winningProposal_ = proposals[winningProposalIndex()].creator;
     }
 
     // Calls winningProposalIndex() function to get the index
@@ -222,6 +245,9 @@ contract Ballot {
         winningProposal_ = proposals[winningProposalIndex()].voteCount;
     }
 
+    ////////////////////////
+    /// END POLL METHODS ///
+    ////////////////////////
 
     // chairperson can end poll
     // when poll ends, the winning proposal's creator
@@ -229,14 +255,18 @@ contract Ballot {
     function endPoll() external payable {
         // sets the poll state to inactive
         status = PollStatus.INACTIVE;
-        // sets the contract balance
-        uint contractBalance = address(this).balance;
-
         // requires chairperson
         require(msg.sender == chairperson);
         // requires time to run out
         require(block.timestamp >= pollEnd);
+    }
 
+    // CHECK FUCTIONS BELOW!!!
+
+    // ends the poll and pays the address who created the winner proposal
+    function endPollAndPayWinner () external payable {
+         // sets the contract balance
+        uint contractBalance = address(this).balance;
         for(uint i=0; i < proposals.length; i++) {
            emit PollResult(proposals[winningProposalIndex()].creator, proposals[winningProposalIndex()].title, proposals[winningProposalIndex()].description, proposals[winningProposalIndex()].voteCount);
         }
@@ -247,12 +277,23 @@ contract Ballot {
         emit PaidWinningProposalCreator(creator, contractBalance);
     }
 
-    // display all proposals from proposals array
-    function getAllProposals() external view returns(Proposal[] memory) {
-        Proposal[] memory items = new Proposal[](proposals.length);
-        for(uint i = 0; i < proposals.length; i++) {
-            items[i] = proposals[i];
-        }
-        return items;
+    // Ends the poll and pays all voters who have participated evenly
+    function endPollAndPayVoters () external payable {
+    uint contractBalance = address(this).balance;
+    uint256 share = contractBalance / allVoters.length;
+    for (uint i=0; i< allVoters.length; i++){
+             allVoters[i].transfer(share);
+         }
+    emit PaidVoters(chairperson, allVoters, contractBalance);
+    }
+
+    // Ends the poll and pays proposal creators evenly
+    function endPollAndPayProposals () external {
+    uint contractBalance = address(this).balance;
+    uint256 share = contractBalance / proposals.length;
+    for (uint i=0; i< proposals.length; i++){
+             proposals[i].creator.transfer(share);
+         }
+    emit PaidProposalCreators(chairperson, contractBalance);
     }
 }
