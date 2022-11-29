@@ -83,7 +83,7 @@ contract Ballot {
 
     // create a possible solution/answer for the current question with title, description
     // starts with 0 votes
-    function createAnswer(bytes32 _title, string memory _description) external {
+    function proposeSolution(bytes32 _title, string memory _description) external {
         // For each of the provided proposal names,
         // create a new proposal object and add it
         // to the end of the array.
@@ -227,7 +227,7 @@ contract Ballot {
         winningSolution_ = solutions[winningSolutionIndex()].creator;
     }
 
-    // Calls winningProposalIndex() function to get the index
+    // Calls winningSolutionIndex() function to get the index
     // of the winner contained in the proposals array and then
     // returns the title of the winning proposal
     function winningSolutionTitle() external view
@@ -270,7 +270,7 @@ contract Ballot {
     // CHECK FUCTIONS BELOW!!!
 
     // ends the poll and pays the address who created the winner proposal
-    function endPollAndPaySolutionWinner () external payable {
+    function endPollAndPayWinningSolutionCreator () external payable {
          // sets the contract balance
         uint contractBalance = address(this).balance;
         for(uint i=0; i < solutions.length; i++) {
@@ -284,7 +284,7 @@ contract Ballot {
     }
 
     // Ends the poll and pays all voters who have participated evenly
-    function endPollAndPayVoters () external payable {
+    function endPollAndPayAllVoters () external payable {
     uint contractBalance = address(this).balance;
     uint256 share = contractBalance / allVoters.length;
     for (uint i=0; i< allVoters.length; i++){
@@ -293,7 +293,7 @@ contract Ballot {
     emit PaidVoters(chairperson, allVoters, contractBalance);
     }
 
-    // Ends the poll and pays proposal creators evenly
+    // Ends the poll and pays solution creators evenly
     function endPollAndPaySolutionCreators () external {
     uint contractBalance = address(this).balance;
     uint256 share = contractBalance / solutions.length;
