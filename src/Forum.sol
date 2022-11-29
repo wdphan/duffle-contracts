@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.7.0 <0.9.0;
 /// @title Voting with delegation.
-import "./Split.sol";
 contract Ballot {
     // This declares a new complex type which will
     // be used for variables later.
@@ -14,7 +13,7 @@ contract Ballot {
     }
 
     // This is a type for a single proposal.
-    struct Proposal {
+    struct Solution {
         address payable creator;
         bytes32 title;   // short name (up to 32 bytes)
         string description;   // short description (up to 32 bytes)
@@ -27,12 +26,14 @@ contract Ballot {
     // INACTIVE - 1
     enum PollStatus{ ACTIVE, INACTIVE }
 
+    PollStatus public status;
     // owner of deployed contract
     address public chairperson;
     uint public pollEnd;
     string public question;
     uint public durationMinutes;
-    PollStatus public status;
+    string public groupName;
+    string public groupDescription;
 
     event Received(address, uint);
     event PollResult(address creator, bytes32 title, string description, uint voteCount);
@@ -45,19 +46,29 @@ contract Ballot {
     mapping(address => Voter) public voters;
     
     // A dynamically-sized array of `Proposal` structs.
-    Proposal [] public proposals;
+    Solution [] public solutions;
     address payable[] public allVoters;
 
-    
+     // allow the contract to receive funds
+     receive() external payable {
+        emit Received(msg.sender, msg.value);
+    }
 
-    // Create a new ballot to choose one of `proposalNames`.
-    constructor(string memory _question, uint256 _durationMinutes) payable {
+    // Create the group name and description!
+    constructor(string memory _groupName, string memory _groupDescription) payable {
         chairperson = msg.sender;
         voters[chairperson].weight = 1;
-        durationMinutes = _durationMinutes;
-        question = _question;
-        // sets time duration
-        pollEnd = block.timestamp + (durationMinutes * 1 minutes);
+       
+       _groupName = groupName;
+       _groupDescription = groupDescription;
+    }
+
+    // create any questions for group
+    function createQuestion (string memory _question, uint256 _durationMinutes) external payable {
+         durationMinutes = _durationMinutes;
+          question = _question;
+            // sets time duration
+            pollEnd = block.timestamp + (durationMinutes * 1 minutes);
     }
 
     // SAMPLE TITLES:
@@ -66,18 +77,13 @@ contract Ballot {
     // ["0x666f6f0000000000000000000000000000000000000000000000000000000000", 
     // "0x6261720000000000000000000000000000000000000000000000000000000000"]
 
-    // allow the contract to receive funds
-     receive() external payable {
-        emit Received(msg.sender, msg.value);
-    }
-
     ////////////////
     /// CHAIRMAN ///
     ////////////////
 
-    // create proposals for the current question with title, descriptio
+    // create a possible solution/answer for the current question with title, description
     // starts with 0 votes
-    function createProposal(bytes32 _title, string memory _description) external {
+    function createAnswer(bytes32 _title, string memory _description) external {
         // For each of the provided proposal names,
         // create a new proposal object and add it
         // to the end of the array.
@@ -85,7 +91,7 @@ contract Ballot {
             // `Proposal({...})` creates a temporary
             // Proposal object and `proposals.push(...)`
             // appends it to the end of `proposals`.
-             proposals.push(Proposal({
+            solutions.push(Solution({
                 creator: payable(msg.sender),
                 title: _title,
                 description: _description,
@@ -160,7 +166,7 @@ contract Ballot {
         if (delegate_.voted) {
             // If the delegate already voted,
             // directly add to the number of votes
-            proposals[delegate_.vote].voteCount += sender.weight;
+            solutions[delegate_.vote].voteCount += sender.weight;
         } else {
             // If the delegate did not vote yet,
             // add to her weight.
@@ -170,24 +176,24 @@ contract Ballot {
 
     /// Give your vote (including votes delegated to you)
     /// to proposal `proposals[proposal].name`.
-    function vote(uint proposal) external {
+    function vote(uint solution) external {
         Voter storage sender = voters[msg.sender];
         require(sender.weight != 0, "Has no right to vote");
         require(!sender.voted, "Already voted.");
         sender.voted = true;
-        sender.vote = proposal;
+        sender.vote = solution;
 
         // If `proposal` is out of the range of the array,
         // this will throw automatically and revert all
         // changes.
-        proposals[proposal].voteCount += sender.weight;
+        solutions[solution].voteCount += sender.weight;
     }
 
      // display all proposals from proposals array
-    function getAllProposals() external view returns(Proposal[] memory) {
-        Proposal[] memory items = new Proposal[](proposals.length);
-        for(uint i = 0; i < proposals.length; i++) {
-            items[i] = proposals[i];
+    function getAllSolutions() external view returns(Solution[] memory) {
+        Solution[] memory items = new Solution[](solutions.length);
+        for(uint i = 0; i < solutions.length; i++) {
+            items[i] = solutions[i];
         }
         return items;
     }
@@ -198,51 +204,51 @@ contract Ballot {
 
      /// @dev Computes the winning proposal index taking all
     /// previous votes into account.
-    function winningProposalIndex() private view
-            returns (uint winningProposal_)
+    function winningSolutionIndex() private view
+            returns (uint winningSolution_)
     {
         uint winningVoteCount = 0;
-        for (uint p = 0; p < proposals.length; p++) {
+        for (uint p = 0; p < solutions.length; p++) {
             // if total votes are greater than 0, then
             // set the total vote count of the proposal with most votes
             // to winner
-            if (proposals[p].voteCount > winningVoteCount) {
-                winningVoteCount = proposals[p].voteCount;
-                winningProposal_ = p;
+            if (solutions[p].voteCount > winningVoteCount) {
+                winningVoteCount = solutions[p].voteCount;
+                winningSolution_ = p;
             }
         }
     }
 
     // provides the creator address of the winning proposal
-    function winningProposalAddress() external view
-            returns (address winningProposal_)
+    function winningSolutionCreatorAddress() external view
+            returns (address winningSolution_)
     {
         // grabs index and logs title of winning proposal
-        winningProposal_ = proposals[winningProposalIndex()].creator;
+        winningSolution_ = solutions[winningSolutionIndex()].creator;
     }
 
     // Calls winningProposalIndex() function to get the index
     // of the winner contained in the proposals array and then
     // returns the title of the winning proposal
-    function winningProposalTitle() external view
-            returns (bytes32 winningProposal_)
+    function winningSolutionTitle() external view
+            returns (bytes32 winningSolution_)
     {
         // grabs index and logs title of winning proposal
-        winningProposal_ = proposals[winningProposalIndex()].title;
+        winningSolution_ = solutions[winningSolutionIndex()].title;
     }
 
-    function winningProposalDescription() external view
-            returns (string memory winningProposal_)
+    function winningSolutionDescription() external view
+            returns (string memory winningSolution_)
     {
         // grabs index and logs description of winning proposal
-        winningProposal_ = proposals[winningProposalIndex()].description;
+        winningSolution_ = solutions[winningSolutionIndex()].description;
     }
 
-    function winningProposalVoteCount() external view
-            returns (uint winningProposal_)
+    function winningSolutionVoteCount() external view
+            returns (uint winningSolution_)
     {
         // grabs index and logs title of winning proposal
-        winningProposal_ = proposals[winningProposalIndex()].voteCount;
+        winningSolution_ = solutions[winningSolutionIndex()].voteCount;
     }
 
     ////////////////////////
@@ -264,13 +270,13 @@ contract Ballot {
     // CHECK FUCTIONS BELOW!!!
 
     // ends the poll and pays the address who created the winner proposal
-    function endPollAndPayWinner () external payable {
+    function endPollAndPaySolutionWinner () external payable {
          // sets the contract balance
         uint contractBalance = address(this).balance;
-        for(uint i=0; i < proposals.length; i++) {
-           emit PollResult(proposals[winningProposalIndex()].creator, proposals[winningProposalIndex()].title, proposals[winningProposalIndex()].description, proposals[winningProposalIndex()].voteCount);
+        for(uint i=0; i < solutions.length; i++) {
+           emit PollResult(solutions[winningSolutionIndex()].creator, solutions[winningSolutionIndex()].title, solutions[winningSolutionIndex()].description, solutions[winningSolutionIndex()].voteCount);
         }
-        address creator = proposals[winningProposalIndex()].creator;
+        address creator = solutions[winningSolutionIndex()].creator;
 
         payable(creator).transfer(contractBalance);
 
@@ -288,11 +294,11 @@ contract Ballot {
     }
 
     // Ends the poll and pays proposal creators evenly
-    function endPollAndPayProposals () external {
+    function endPollAndPaySolutionCreators () external {
     uint contractBalance = address(this).balance;
-    uint256 share = contractBalance / proposals.length;
-    for (uint i=0; i< proposals.length; i++){
-             proposals[i].creator.transfer(share);
+    uint256 share = contractBalance / solutions.length;
+    for (uint i=0; i< solutions.length; i++){
+             solutions[i].creator.transfer(share);
          }
     emit PaidProposalCreators(chairperson, contractBalance);
     }
