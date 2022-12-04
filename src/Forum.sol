@@ -7,10 +7,10 @@ contract Forum {
     // be used for variables later.
     // It will represent a single voter.
     struct Voter {
-        uint weight; // weight is accumulated by delegation
-        bool voted;  // if true, that person already voted
         address delegate; // person delegated to
-        uint vote;   // index of the voted proposal
+        bool voted;  // if true, that person already voted
+        uint weight; // weight is accumulated by delegation
+        uint8 vote;   // index of the voted proposal
     }
 
     // This is a type for a single proposal.
@@ -20,6 +20,7 @@ contract Forum {
         string description;   // short description (up to 32 bytes)
         uint voteCount; // number of accumulated votes
     }
+
 
     // status of poll
     // Returns uint
@@ -66,8 +67,8 @@ contract Forum {
 
     // create any questions for group
     function createQuestion (string memory _question, uint256 _durationMinutes) external payable {
-         durationMinutes = _durationMinutes;
-          question = _question;
+        durationMinutes = _durationMinutes;
+        question = _question;
             // sets time duration
             pollEnd = block.timestamp + (durationMinutes * 1 minutes);
     }
@@ -177,7 +178,7 @@ contract Forum {
 
     /// Give your vote (including votes delegated to you)
     /// to proposal `proposals[proposal].name`.
-    function vote(uint solution) external {
+    function vote(uint8 solution) external {
         Voter storage sender = voters[msg.sender];
         require(sender.weight != 0, "Has no right to vote");
         require(!sender.voted, "Already voted.");
@@ -190,7 +191,7 @@ contract Forum {
         solutions[solution].voteCount += sender.weight;
     }
 
-     // display all proposals from proposals array
+    // display all proposals from proposals array
     function getAllSolutions() external view returns(Solution[] memory) {
         Solution[] memory items = new Solution[](solutions.length);
         for(uint i = 0; i < solutions.length; i++) {
@@ -203,7 +204,7 @@ contract Forum {
     /// WINNING PROPOSAL INFO ///
     /////////////////////////////
 
-     /// @dev Computes the winning proposal index taking all
+    /// @dev Computes the winning proposal index taking all
     /// previous votes into account.
     function winningSolutionIndex() private view
             returns (uint winningSolution_)
@@ -268,39 +269,53 @@ contract Forum {
         require(block.timestamp >= pollEnd);
     }
 
-    // CHECK FUCTIONS BELOW!!!
-
-    // ends the poll and pays the address who created the winner proposal
+    // ends the poll, emits the winning proposal creator, and payout
     function endPollAndPayWinningSolutionCreator () external payable {
-         // sets the contract balance
-        uint contractBalance = address(this).balance;
-        for(uint i=0; i < solutions.length; i++) {
-           emit PollResult(solutions[winningSolutionIndex()].creator, solutions[winningSolutionIndex()].title, solutions[winningSolutionIndex()].description, solutions[winningSolutionIndex()].voteCount);
-        }
-        address creator = solutions[winningSolutionIndex()].creator;
-
-        payable(creator).transfer(contractBalance);
-
-        emit PaidWinningProposalCreator(creator, contractBalance);
-    }
-
+    // retrieve the solution id with the most votes
+    uint solutionId = winningSolutionIndex();
+    // retrieve the creator of the solution
+    address payable creator = solutions[solutionId].creator;
+    // set the new status to inactive
+    status = PollStatus.INACTIVE;
+    // give the creator the funds
+    creator.transfer(address(this).balance);
+    // emit event to track
+    emit PaidWinningProposalCreator(creator, address(this).balance);
+}
     // Ends the poll and pays all voters who have participated evenly
-    function endPollAndPayAllVoters () external payable {
-    uint contractBalance = address(this).balance;
-    uint256 share = contractBalance / allVoters.length;
-    for (uint i=0; i< allVoters.length; i++){
-             allVoters[i].transfer(share);
-         }
-    emit PaidVoters(chairperson, allVoters, contractBalance);
+    function endPollAndPayVoters() external {
+    require(msg.sender == chairperson, "Only chairperson can end the poll.");
+    require(pollEnd <= block.timestamp, "Poll is not yet finished.");
+    // set the amount to be paid out
+    uint amountPaidOut = address(this).balance / allVoters.length;
+    // loop through all the voters
+    for (uint i = 0; i < allVoters.length; i++) {
+        // retrieve the voter
+        address payable voter = allVoters[i];
+        // give the voter the funds
+        voter.transfer(amountPaidOut);
     }
+    // emit event to track
+    emit PaidVoters(chairperson, allVoters, amountPaidOut);
+    // set the status to inactive
+    status = PollStatus.INACTIVE;
+}
+
 
     // Ends the poll and pays solution creators evenly
-    function endPollAndPaySolutionCreators () external {
-    uint contractBalance = address(this).balance;
-    uint256 share = contractBalance / solutions.length;
-    for (uint i=0; i< solutions.length; i++){
-             solutions[i].creator.transfer(share);
-         }
-    emit PaidProposalCreators(chairperson, contractBalance);
+    function endPollAndPayAllSolutionCreators() external {
+    // set the amount to be paid out
+    uint amountPaidOut = address(this).balance / solutions.length;
+    // loop through all the solutions
+    for (uint i = 0; i < solutions.length; i++) {
+        // retrieve the creator of the solution
+        address payable creator = solutions[i].creator;
+        // give the creator the funds
+        creator.transfer(amountPaidOut);
     }
+    // end the poll
+    status = PollStatus.INACTIVE;
+    // emit event to track
+    emit PaidProposalCreators(chairperson, amountPaidOut);
+}
 }
