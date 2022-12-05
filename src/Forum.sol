@@ -7,7 +7,7 @@ contract Forum {
     // be used for variables later.
     // It will represent a single voter.
     struct Voter {
-        address delegate; // person delegated to
+        address payable delegate; // person delegated to
         bool voted;  // if true, that person already voted
         uint weight; // weight is accumulated by delegation
         uint8 vote;   // index of the voted proposal
@@ -132,7 +132,7 @@ contract Forum {
     //////////////
 
     /// Delegate your vote to the voter `to`.
-    function delegateVote(address to) external {
+    function delegateVote(address payable to) external {
         // assigns reference
         Voter storage sender = voters[msg.sender];
         require(sender.weight != 0, "You have no right to vote");
@@ -179,143 +179,30 @@ contract Forum {
     /// Give your vote (including votes delegated to you)
     /// to proposal `proposals[proposal].name`.
     function vote(uint8 solution) external {
+    
         Voter storage sender = voters[msg.sender];
-        require(sender.weight != 0, "Has no right to vote");
-        require(!sender.voted, "Already voted.");
         sender.voted = true;
         sender.vote = solution;
+         require(sender.weight != 0, "Has no right to vote");
+        require(!sender.voted, "Already voted.");
 
         // If `proposal` is out of the range of the array,
         // this will throw automatically and revert all
         // changes.
         solutions[solution].voteCount += sender.weight;
+        //  allVoters.push(Voter({
+        //         delegate: payable(msg.sender),
+        //         voted: true,
+        //         weight: 1,
+        //         vote: 0
+        //     }));
     }
 
-    // display all proposals from proposals array
-    function getAllSolutions() external view returns(Solution[] memory) {
-        Solution[] memory items = new Solution[](solutions.length);
-        for(uint i = 0; i < solutions.length; i++) {
-            items[i] = solutions[i];
+    // display all voter address's from proposals array
+    function getAllVoters() external view returns(Voter[] memory) {
+        Voter[] memory items = new Voter[](allVoters.length);
+        for(uint i = 0; i < allVoters.length; i++) {
+            items[i] = allVoters[i];
         }
         return items;
     }
-
-    /////////////////////////////
-    /// WINNING PROPOSAL INFO ///
-    /////////////////////////////
-
-    /// @dev Computes the winning proposal index taking all
-    /// previous votes into account.
-    function winningSolutionIndex() private view
-            returns (uint winningSolution_)
-    {
-        uint winningVoteCount = 0;
-        for (uint p = 0; p < solutions.length; p++) {
-            // if total votes are greater than 0, then
-            // set the total vote count of the proposal with most votes
-            // to winner
-            if (solutions[p].voteCount > winningVoteCount) {
-                winningVoteCount = solutions[p].voteCount;
-                winningSolution_ = p;
-            }
-        }
-    }
-
-    // provides the creator address of the winning proposal
-    function winningSolutionCreatorAddress() external view
-            returns (address winningSolution_)
-    {
-        // grabs index and logs title of winning proposal
-        winningSolution_ = solutions[winningSolutionIndex()].creator;
-    }
-
-    // Calls winningSolutionIndex() function to get the index
-    // of the winner contained in the proposals array and then
-    // returns the title of the winning proposal
-    function winningSolutionTitle() external view
-            returns (bytes32 winningSolution_)
-    {
-        // grabs index and logs title of winning proposal
-        winningSolution_ = solutions[winningSolutionIndex()].title;
-    }
-
-    function winningSolutionDescription() external view
-            returns (string memory winningSolution_)
-    {
-        // grabs index and logs description of winning proposal
-        winningSolution_ = solutions[winningSolutionIndex()].description;
-    }
-
-    function winningSolutionVoteCount() external view
-            returns (uint winningSolution_)
-    {
-        // grabs index and logs title of winning proposal
-        winningSolution_ = solutions[winningSolutionIndex()].voteCount;
-    }
-
-    ////////////////////////
-    /// END POLL METHODS ///
-    ////////////////////////
-
-    // chairperson can end poll
-    // when poll ends, the winning proposal's creator
-    // will receive any funds deposited in poll as prize for best proposal
-    function endPoll() external payable {
-        // sets the poll state to inactive
-        status = PollStatus.INACTIVE;
-        // requires chairperson
-        require(msg.sender == chairperson);
-        // requires time to run out
-        require(block.timestamp >= pollEnd);
-    }
-
-    // ends the poll, emits the winning proposal creator, and payout
-    function endPollAndPayWinningSolutionCreator () external payable {
-    // retrieve the solution id with the most votes
-    uint solutionId = winningSolutionIndex();
-    // retrieve the creator of the solution
-    address payable creator = solutions[solutionId].creator;
-    // set the new status to inactive
-    status = PollStatus.INACTIVE;
-    // give the creator the funds
-    creator.transfer(address(this).balance);
-    // emit event to track
-    emit PaidWinningProposalCreator(creator, address(this).balance);
-}
-    // Ends the poll and pays all voters who have participated evenly
-    function endPollAndPayVoters() external {
-    require(msg.sender == chairperson, "Only chairperson can end the poll.");
-    require(pollEnd <= block.timestamp, "Poll is not yet finished.");
-    // set the amount to be paid out
-    uint amountPaidOut = address(this).balance / allVoters.length;
-    // loop through all the voters
-    for (uint i = 0; i < allVoters.length; i++) {
-        // retrieve the voter
-        address payable voter = allVoters[i];
-        // give the voter the funds
-        voter.transfer(amountPaidOut);
-    }
-    // emit event to track
-    emit PaidVoters(chairperson, allVoters, amountPaidOut);
-    // set the status to inactive
-    status = PollStatus.INACTIVE;
-}
-
-
-    // Ends the poll and pays solution creators evenly
-    function endPollAndPayAllSolutionCreators() external {
-    // set the amount to be paid out
-    uint amountPaidOut = address(this).balance / solutions.length;
-    // loop through all the solutions
-    for (uint i = 0; i < solutions.length; i++) {
-        // retrieve the creator of the solution
-        address payable creator = solutions[i].creator;
-        // give the creator the funds
-        creator.transfer(amountPaidOut);
-    }
-    // end the poll
-    status = PollStatus.INACTIVE;
-    // emit event to track
-    emit PaidProposalCreators(chairperson, amountPaidOut);
-}
-}
